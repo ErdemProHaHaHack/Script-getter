@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">Universal Hub</string>
+    <string name="script_title">Script:</string>
+    <string name="script_content">loadstring(game:HttpGet("https://raw.githubusercontent.com/ErdemProHaHaHack/Universal-hub-v2/refs/heads/main/script"))()</string>
+    <string name="key_title">Key:</string>
+    <string name="key_content">woahmyuniversalscriptissoopv2</string>
+    <string name="copy_script">Copy Script</string>
+    <string name="copy_key">Copy Key</string>
+    <string name="copied">Copied to clipboard!</string>
+</resources>

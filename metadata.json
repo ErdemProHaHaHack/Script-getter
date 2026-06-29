@@ -1,0 +1,6 @@
+{
+  "name": "Universal Hub",
+  "description": "App to provide script and key.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
