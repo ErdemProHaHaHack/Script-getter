@@ -72,6 +72,17 @@ googleServices {
   missingGoogleServicesStrategy = MissingGoogleServicesStrategy.WARN
 }
 
+tasks.register("zipApk", Zip::class) {
+  from("build/outputs/apk/debug/app-debug.apk")
+  archiveFileName.set("Download_Me.zip")
+  destinationDirectory.set(file("$rootDir"))
+}
+afterEvaluate {
+  tasks.named("assembleDebug") {
+    finalizedBy("zipApk")
+  }
+}
+
 
 // Some unused dependencies are commented out below instead of being removed.
 // This makes it easy to add them back in the future if needed.

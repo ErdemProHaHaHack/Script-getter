@@ -1,5 +1,6 @@
 package com.example
 
+import android.app.Application
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -9,6 +10,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -16,12 +19,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
@@ -30,6 +34,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -38,41 +43,49 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 
-val SleekDarkColorScheme = darkColorScheme(
-    primary = Color(0xFF00E5FF),
-    onPrimary = Color(0xFF00363D),
-    primaryContainer = Color(0xFF004F58),
-    onPrimaryContainer = Color(0xFF99F5FF),
+enum class ThemeColor(val color: Color, val displayName: String) {
+    NeonGreen(Color(0xFF00FF87), "Neon Green"),
+    Blue(Color(0xFF2196F3), "Blue"),
+    Red(Color(0xFFF44336), "Red"),
+    Purple(Color(0xFF9C27B0), "Purple"),
+    Orange(Color(0xFFFF9800), "Orange")
+}
+
+fun getDynamicDarkColorScheme(primaryColor: Color) = darkColorScheme(
+    primary = primaryColor,
+    onPrimary = Color.Black,
+    primaryContainer = primaryColor.copy(alpha = 0.3f),
+    onPrimaryContainer = primaryColor,
     secondary = Color(0xFFB388FF),
     onSecondary = Color(0xFF22005D),
     secondaryContainer = Color(0xFF380099),
     onSecondaryContainer = Color(0xFFEADDFF),
-    background = Color(0xFF0A0A0C),
+    background = Color(0xFF09090B),
     onBackground = Color(0xFFFAFAFA),
-    surface = Color(0xFF141418),
+    surface = Color(0xFF121214),
     onSurface = Color(0xFFFAFAFA),
-    surfaceVariant = Color(0xFF1F1F24),
+    surfaceVariant = Color(0xFF1E1E22),
     onSurfaceVariant = Color(0xFFA1A1AA),
     outline = Color(0xFF333338),
     outlineVariant = Color(0xFF27272A)
 )
 
-val SleekLightColorScheme = lightColorScheme(
-    primary = Color(0xFF006874),
-    onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFF97F0FF),
-    onPrimaryContainer = Color(0xFF001F24),
+fun getDynamicLightColorScheme(primaryColor: Color) = lightColorScheme(
+    primary = primaryColor,
+    onPrimary = Color.White,
+    primaryContainer = primaryColor.copy(alpha = 0.3f),
+    onPrimaryContainer = primaryColor,
     secondary = Color(0xFF65558F),
     onSecondary = Color(0xFFFFFFFF),
     secondaryContainer = Color(0xFFEADDFF),
     onSecondaryContainer = Color(0xFF21005D),
     background = Color(0xFFF7F7F9),
-    onBackground = Color(0xFF0A0A0C),
+    onBackground = Color(0xFF09090B),
     surface = Color(0xFFFFFFFF),
-    onSurface = Color(0xFF0A0A0C),
+    onSurface = Color(0xFF09090B),
     surfaceVariant = Color(0xFFF1F1F4),
     onSurfaceVariant = Color(0xFF52525B),
     outline = Color(0xFFD4D4D8),
@@ -82,9 +95,10 @@ val SleekLightColorScheme = lightColorScheme(
 @Composable
 fun SleekTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    themeColor: ThemeColor = ThemeColor.NeonGreen,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) SleekDarkColorScheme else SleekLightColorScheme
+    val colorScheme = if (darkTheme) getDynamicDarkColorScheme(themeColor.color) else getDynamicLightColorScheme(themeColor.color)
     MaterialTheme(
         colorScheme = colorScheme,
         content = content
@@ -99,9 +113,54 @@ enum class ThemeMode {
     System, Light, Dark
 }
 
-class MainViewModel : ViewModel() {
+enum class ScriptCategory {
+    Universal, KeyboardEscape
+}
+
+class MainViewModel(application: Application) : AndroidViewModel(application) {
+    private val prefs = application.getSharedPreferences("UniversalHubPrefs", Context.MODE_PRIVATE)
+
     var currentTab by mutableStateOf(ScreenTab.Scripts)
-    var themeMode by mutableStateOf(ThemeMode.System)
+
+    var themeMode by mutableStateOf(ThemeMode.valueOf(prefs.getString("themeMode", ThemeMode.System.name) ?: ThemeMode.System.name))
+        private set
+    
+    var themeColor by mutableStateOf(ThemeColor.valueOf(prefs.getString("themeColor", ThemeColor.NeonGreen.name) ?: ThemeColor.NeonGreen.name))
+        private set
+        
+    var autoExecute by mutableStateOf(prefs.getBoolean("autoExecute", true))
+        private set
+
+    var safeMode by mutableStateOf(prefs.getBoolean("safeMode", false))
+        private set
+
+    var notifications by mutableStateOf(prefs.getBoolean("notifications", true))
+        private set
+        
+    fun updateThemeMode(mode: ThemeMode) {
+        themeMode = mode
+        prefs.edit().putString("themeMode", mode.name).apply()
+    }
+
+    fun updateThemeColor(color: ThemeColor) {
+        themeColor = color
+        prefs.edit().putString("themeColor", color.name).apply()
+    }
+
+    fun updateAutoExecute(enabled: Boolean) {
+        autoExecute = enabled
+        prefs.edit().putBoolean("autoExecute", enabled).apply()
+    }
+
+    fun updateSafeMode(enabled: Boolean) {
+        safeMode = enabled
+        prefs.edit().putBoolean("safeMode", enabled).apply()
+    }
+
+    fun updateNotifications(enabled: Boolean) {
+        notifications = enabled
+        prefs.edit().putBoolean("notifications", enabled).apply()
+    }
 }
 
 class MainActivity : ComponentActivity() {
@@ -117,7 +176,7 @@ class MainActivity : ComponentActivity() {
                 ThemeMode.Dark -> true
             }
 
-            SleekTheme(darkTheme = isDark) {
+            SleekTheme(darkTheme = isDark, themeColor = viewModel.themeColor) {
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     bottomBar = {
@@ -139,8 +198,7 @@ class MainActivity : ComponentActivity() {
                             ScreenTab.Keys -> KeysScreen()
                             ScreenTab.Executors -> ExecutorsScreen()
                             ScreenTab.Settings -> SettingsScreen(
-                                currentTheme = viewModel.themeMode,
-                                onThemeChanged = { viewModel.themeMode = it }
+                                viewModel = viewModel
                             )
                         }
                     }
@@ -151,12 +209,71 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
+fun CategoryTabs(
+    selectedCategory: ScriptCategory,
+    onCategorySelected: (ScriptCategory) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 8.dp)
+            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(24.dp))
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        CategoryTab(
+            text = "Universal Scripts",
+            isSelected = selectedCategory == ScriptCategory.Universal,
+            modifier = Modifier.weight(1f),
+            onClick = { onCategorySelected(ScriptCategory.Universal) }
+        )
+        CategoryTab(
+            text = "Keyboard Escape",
+            isSelected = selectedCategory == ScriptCategory.KeyboardEscape,
+            modifier = Modifier.weight(1f),
+            onClick = { onCategorySelected(ScriptCategory.KeyboardEscape) }
+        )
+    }
+}
+
+@Composable
+fun CategoryTab(text: String, isSelected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val backgroundColor by animateColorAsState(
+        targetValue = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+        label = "TabBackground"
+    )
+    val contentColor by animateColorAsState(
+        targetValue = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+        label = "TabContent"
+    )
+
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(backgroundColor)
+            .clickable { onClick() }
+            .padding(vertical = 12.dp, horizontal = 4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            color = contentColor,
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
 fun ScriptsScreen() {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
+    var selectedCategory by remember { mutableStateOf(ScriptCategory.Universal) }
 
     val v2Script = "loadstring(game:HttpGet(\"https://raw.githubusercontent.com/ErdemProHaHaHack/Universal-hub-v2/refs/heads/main/script\"))()"
     val v1Script = "loadstring(game:HttpGet(\"https://raw.githubusercontent.com/ErdemProHaHaHack/universal-script/refs/heads/main/script\"))()"
+    val kbScript = "loadstring(game:HttpGet(\"https://raw.githubusercontent.com/ErdemProHaHaHack/Keyboard-Escape-Scripts/refs/heads/main/Win%20Farm\"))()"
 
     Column(
         modifier = Modifier
@@ -164,19 +281,36 @@ fun ScriptsScreen() {
             .verticalScroll(scrollState)
             .padding(bottom = 24.dp)
     ) {
-        HeaderSection()
+        HeaderSection(title = "Scripts", icon = Icons.Filled.Build)
 
-        Column(modifier = Modifier.padding(horizontal = 24.dp)) {
-            Spacer(modifier = Modifier.height(16.dp))
-            SectionTitle("VERSION 1")
-            Spacer(modifier = Modifier.height(12.dp))
-            CoolScriptCard(content = v1Script, onCopy = { copyToClipboard(context, "V1 Script", v1Script) })
+        CategoryTabs(
+            selectedCategory = selectedCategory,
+            onCategorySelected = { selectedCategory = it }
+        )
 
-            Spacer(modifier = Modifier.height(40.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-            SectionTitle("VERSION 2 (BETA)")
-            Spacer(modifier = Modifier.height(12.dp))
-            CoolScriptCard(content = v2Script, onCopy = { copyToClipboard(context, "V2 Script", v2Script) })
+        Crossfade(targetState = selectedCategory, label = "ScriptCategoryCrossfade") { category ->
+            Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+                when (category) {
+                    ScriptCategory.Universal -> {
+                        SectionTitle("VERSION 2 (BETA)")
+                        Spacer(modifier = Modifier.height(12.dp))
+                        CoolScriptCard(content = v2Script, onCopy = { copyToClipboard(context, "V2 Script", v2Script) })
+
+                        Spacer(modifier = Modifier.height(32.dp))
+
+                        SectionTitle("VERSION 1")
+                        Spacer(modifier = Modifier.height(12.dp))
+                        CoolScriptCard(content = v1Script, onCopy = { copyToClipboard(context, "V1 Script", v1Script) })
+                    }
+                    ScriptCategory.KeyboardEscape -> {
+                        SectionTitle("WIN FARM")
+                        Spacer(modifier = Modifier.height(12.dp))
+                        CoolScriptCard(content = kbScript, onCopy = { copyToClipboard(context, "KB Escape Script", kbScript) })
+                    }
+                }
+            }
         }
     }
 }
@@ -185,9 +319,11 @@ fun ScriptsScreen() {
 fun KeysScreen() {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
+    var selectedCategory by remember { mutableStateOf(ScriptCategory.Universal) }
 
     val v2Key = "woahmyuniversalscriptissoopv2"
     val v1Key = "woahmyuniversalscriptissoop"
+    val kbKey = "myfirstspecialgamescript"
 
     Column(
         modifier = Modifier
@@ -195,19 +331,36 @@ fun KeysScreen() {
             .verticalScroll(scrollState)
             .padding(bottom = 24.dp)
     ) {
-        HeaderSection()
+        HeaderSection(title = "Access Keys", icon = Icons.Filled.Lock)
 
-        Column(modifier = Modifier.padding(horizontal = 24.dp)) {
-            Spacer(modifier = Modifier.height(16.dp))
-            SectionTitle("VERSION 1")
-            Spacer(modifier = Modifier.height(12.dp))
-            CoolKeyCard(content = v1Key, onCopy = { copyToClipboard(context, "V1 Key", v1Key) })
+        CategoryTabs(
+            selectedCategory = selectedCategory,
+            onCategorySelected = { selectedCategory = it }
+        )
 
-            Spacer(modifier = Modifier.height(40.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-            SectionTitle("VERSION 2 (BETA)")
-            Spacer(modifier = Modifier.height(12.dp))
-            CoolKeyCard(content = v2Key, onCopy = { copyToClipboard(context, "V2 Key", v2Key) })
+        Crossfade(targetState = selectedCategory, label = "KeyCategoryCrossfade") { category ->
+            Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+                when (category) {
+                    ScriptCategory.Universal -> {
+                        SectionTitle("VERSION 2 (BETA)")
+                        Spacer(modifier = Modifier.height(12.dp))
+                        CoolKeyCard(content = v2Key, onCopy = { copyToClipboard(context, "V2 Key", v2Key) })
+
+                        Spacer(modifier = Modifier.height(32.dp))
+
+                        SectionTitle("VERSION 1")
+                        Spacer(modifier = Modifier.height(12.dp))
+                        CoolKeyCard(content = v1Key, onCopy = { copyToClipboard(context, "V1 Key", v1Key) })
+                    }
+                    ScriptCategory.KeyboardEscape -> {
+                        SectionTitle("KEYBOARD ESCAPE KEY")
+                        Spacer(modifier = Modifier.height(12.dp))
+                        CoolKeyCard(content = kbKey, onCopy = { copyToClipboard(context, "KB Escape Key", kbKey) })
+                    }
+                }
+            }
         }
     }
 }
@@ -226,10 +379,9 @@ fun ExecutorsScreen() {
             .verticalScroll(scrollState)
             .padding(bottom = 24.dp)
     ) {
-        HeaderSection()
+        HeaderSection(title = "Executors", icon = Icons.Filled.PlayArrow)
 
         Column(modifier = Modifier.padding(horizontal = 24.dp)) {
-            Spacer(modifier = Modifier.height(16.dp))
             SectionTitle("GLOBAL VERSION")
             Spacer(modifier = Modifier.height(12.dp))
             CoolLinkCard(
@@ -254,52 +406,190 @@ fun ExecutorsScreen() {
 }
 
 @Composable
-fun SettingsScreen(currentTheme: ThemeMode, onThemeChanged: (ThemeMode) -> Unit) {
+fun SettingsScreen(viewModel: MainViewModel) {
+    val scrollState = rememberScrollState()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .verticalScroll(scrollState)
+            .padding(bottom = 24.dp)
     ) {
-        Text(
-            text = "Settings",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.padding(top = 24.dp, bottom = 24.dp)
-        )
+        HeaderSection(title = "Settings", icon = Icons.Filled.Settings)
 
-        Text(
-            text = "Theme Preference",
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
+        Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+            
+            SectionTitle("APPEARANCE")
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                modifier = Modifier.padding(top = 8.dp, bottom = 24.dp)
+            ) {
+                Column {
+                    ThemeOptionRow(
+                        label = "System Default",
+                        isSelected = viewModel.themeMode == ThemeMode.System,
+                        onClick = { viewModel.updateThemeMode(ThemeMode.System) }
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f))
+                    ThemeOptionRow(
+                        label = "Light Mode",
+                        isSelected = viewModel.themeMode == ThemeMode.Light,
+                        onClick = { viewModel.updateThemeMode(ThemeMode.Light) }
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f))
+                    ThemeOptionRow(
+                        label = "Dark Mode",
+                        isSelected = viewModel.themeMode == ThemeMode.Dark,
+                        onClick = { viewModel.updateThemeMode(ThemeMode.Dark) }
+                    )
+                }
+            }
 
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-        ) {
-            Column {
-                ThemeOptionRow(
-                    label = "System Default",
-                    isSelected = currentTheme == ThemeMode.System,
-                    onClick = { onThemeChanged(ThemeMode.System) }
-                )
-                HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f))
-                ThemeOptionRow(
-                    label = "Light Mode",
-                    isSelected = currentTheme == ThemeMode.Light,
-                    onClick = { onThemeChanged(ThemeMode.Light) }
-                )
-                HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f))
-                ThemeOptionRow(
-                    label = "Dark Mode",
-                    isSelected = currentTheme == ThemeMode.Dark,
-                    onClick = { onThemeChanged(ThemeMode.Dark) }
-                )
+            SectionTitle("BUTTON COLORS")
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                modifier = Modifier.padding(top = 8.dp, bottom = 24.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Choose App Theme Color",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        ThemeColor.values().forEach { themeColor ->
+                            ColorPickerItem(
+                                color = themeColor.color,
+                                isSelected = viewModel.themeColor == themeColor,
+                                onClick = { viewModel.updateThemeColor(themeColor) }
+                            )
+                        }
+                    }
+                }
+            }
+
+            SectionTitle("PREFERENCES")
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                modifier = Modifier.padding(top = 8.dp, bottom = 24.dp)
+            ) {
+                Column {
+                    SwitchSettingRow(
+                        label = "Auto Execute Scripts",
+                        description = "Automatically copy and execute on tap",
+                        checked = viewModel.autoExecute,
+                        onCheckedChange = { viewModel.updateAutoExecute(it) }
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f))
+                    SwitchSettingRow(
+                        label = "Safe Mode",
+                        description = "Enable anti-ban protection features",
+                        checked = viewModel.safeMode,
+                        onCheckedChange = { viewModel.updateSafeMode(it) }
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f))
+                    SwitchSettingRow(
+                        label = "Notifications",
+                        description = "Show execution alerts",
+                        checked = viewModel.notifications,
+                        onCheckedChange = { viewModel.updateNotifications(it) }
+                    )
+                }
+            }
+            
+            SectionTitle("ABOUT")
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                modifier = Modifier.padding(top = 8.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Universal Hub App v1.2.0",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Developed by ErdemPro655. All scripts and executors provided are for educational purposes.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+fun ColorPickerItem(color: Color, isSelected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .background(color)
+            .clickable(onClick = onClick)
+            .then(
+                if (isSelected) Modifier.border(3.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
+                else Modifier
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        if (isSelected) {
+            Icon(
+                imageVector = Icons.Filled.Check,
+                contentDescription = "Selected Color",
+                tint = Color.Black
+            )
+        }
+    }
+}
+
+@Composable
+fun SwitchSettingRow(label: String, description: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) }
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = description,
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(modifier = Modifier.width(16.dp))
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+        )
     }
 }
 
@@ -329,7 +619,7 @@ fun ThemeOptionRow(label: String, isSelected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-fun HeaderSection() {
+fun HeaderSection(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -348,7 +638,7 @@ fun HeaderSection() {
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Filled.Build,
+                imageVector = icon,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier.size(32.dp)
@@ -357,7 +647,7 @@ fun HeaderSection() {
         Spacer(modifier = Modifier.width(20.dp))
         Column {
             Text(
-                text = "Universal Hub",
+                text = title,
                 color = MaterialTheme.colorScheme.onBackground,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Black,
@@ -365,7 +655,7 @@ fun HeaderSection() {
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "Scripts by: ErdemPro655 on YT",
+                text = "Universal Hub by ErdemPro655",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold
@@ -580,7 +870,7 @@ fun BottomNavigationBar(currentTab: ScreenTab, onTabSelected: (ScreenTab) -> Uni
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 NavItem(
-                    icon = Icons.Filled.List,
+                    icon = Icons.AutoMirrored.Filled.List,
                     label = "Scripts",
                     isSelected = currentTab == ScreenTab.Scripts,
                     onClick = { onTabSelected(ScreenTab.Scripts) }
