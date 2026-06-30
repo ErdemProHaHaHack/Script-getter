@@ -3,6 +3,8 @@ package com.example
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -21,6 +23,7 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
@@ -89,7 +92,7 @@ fun SleekTheme(
 }
 
 enum class ScreenTab {
-    Scripts, Settings
+    Scripts, Keys, Executors, Settings
 }
 
 enum class ThemeMode {
@@ -133,6 +136,8 @@ class MainActivity : ComponentActivity() {
                     ) {
                         when (viewModel.currentTab) {
                             ScreenTab.Scripts -> ScriptsScreen()
+                            ScreenTab.Keys -> KeysScreen()
+                            ScreenTab.Executors -> ExecutorsScreen()
                             ScreenTab.Settings -> SettingsScreen(
                                 currentTheme = viewModel.themeMode,
                                 onThemeChanged = { viewModel.themeMode = it }
@@ -151,10 +156,7 @@ fun ScriptsScreen() {
     val scrollState = rememberScrollState()
 
     val v2Script = "loadstring(game:HttpGet(\"https://raw.githubusercontent.com/ErdemProHaHaHack/Universal-hub-v2/refs/heads/main/script\"))()"
-    val v2Key = "woahmyuniversalscriptissoopv2"
-    
     val v1Script = "loadstring(game:HttpGet(\"https://raw.githubusercontent.com/ErdemProHaHaHack/universal-script/refs/heads/main/script\"))()"
-    val v1Key = "woahmyuniversalscriptissoop"
 
     Column(
         modifier = Modifier
@@ -169,16 +171,84 @@ fun ScriptsScreen() {
             SectionTitle("VERSION 1")
             Spacer(modifier = Modifier.height(12.dp))
             CoolScriptCard(content = v1Script, onCopy = { copyToClipboard(context, "V1 Script", v1Script) })
-            Spacer(modifier = Modifier.height(16.dp))
-            CoolKeyCard(content = v1Key, onCopy = { copyToClipboard(context, "V1 Key", v1Key) })
 
             Spacer(modifier = Modifier.height(40.dp))
 
             SectionTitle("VERSION 2 (BETA)")
             Spacer(modifier = Modifier.height(12.dp))
             CoolScriptCard(content = v2Script, onCopy = { copyToClipboard(context, "V2 Script", v2Script) })
+        }
+    }
+}
+
+@Composable
+fun KeysScreen() {
+    val context = LocalContext.current
+    val scrollState = rememberScrollState()
+
+    val v2Key = "woahmyuniversalscriptissoopv2"
+    val v1Key = "woahmyuniversalscriptissoop"
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scrollState)
+            .padding(bottom = 24.dp)
+    ) {
+        HeaderSection()
+
+        Column(modifier = Modifier.padding(horizontal = 24.dp)) {
             Spacer(modifier = Modifier.height(16.dp))
+            SectionTitle("VERSION 1")
+            Spacer(modifier = Modifier.height(12.dp))
+            CoolKeyCard(content = v1Key, onCopy = { copyToClipboard(context, "V1 Key", v1Key) })
+
+            Spacer(modifier = Modifier.height(40.dp))
+
+            SectionTitle("VERSION 2 (BETA)")
+            Spacer(modifier = Modifier.height(12.dp))
             CoolKeyCard(content = v2Key, onCopy = { copyToClipboard(context, "V2 Key", v2Key) })
+        }
+    }
+}
+
+@Composable
+fun ExecutorsScreen() {
+    val context = LocalContext.current
+    val scrollState = rememberScrollState()
+
+    val globalUrl = "https://www.mediafire.com/file/21frzxbp4zmvw7t/Delta_Global-2.725-UpdatedbyErdemPro655.apk/file"
+    val vnUrl = "https://www.mediafire.com/file/xb9wlouzedpkjkt/Delta_Vng-2.725-UpdatedbyErdemPro655.apk/file"
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scrollState)
+            .padding(bottom = 24.dp)
+    ) {
+        HeaderSection()
+
+        Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+            Spacer(modifier = Modifier.height(16.dp))
+            SectionTitle("GLOBAL VERSION")
+            Spacer(modifier = Modifier.height(12.dp))
+            CoolLinkCard(
+                title = "DELTA GLOBAL",
+                url = globalUrl,
+                onCopy = { copyToClipboard(context, "Global Link", globalUrl) },
+                onOpen = { openBrowser(context, globalUrl) }
+            )
+
+            Spacer(modifier = Modifier.height(40.dp))
+
+            SectionTitle("VN VERSION (Only Vietnam Users)")
+            Spacer(modifier = Modifier.height(12.dp))
+            CoolLinkCard(
+                title = "DELTA VN",
+                url = vnUrl,
+                onCopy = { copyToClipboard(context, "VN Link", vnUrl) },
+                onOpen = { openBrowser(context, vnUrl) }
+            )
         }
     }
 }
@@ -516,6 +586,18 @@ fun BottomNavigationBar(currentTab: ScreenTab, onTabSelected: (ScreenTab) -> Uni
                     onClick = { onTabSelected(ScreenTab.Scripts) }
                 )
                 NavItem(
+                    icon = Icons.Filled.Lock,
+                    label = "Keys",
+                    isSelected = currentTab == ScreenTab.Keys,
+                    onClick = { onTabSelected(ScreenTab.Keys) }
+                )
+                NavItem(
+                    icon = Icons.Filled.PlayArrow,
+                    label = "Executors",
+                    isSelected = currentTab == ScreenTab.Executors,
+                    onClick = { onTabSelected(ScreenTab.Executors) }
+                )
+                NavItem(
                     icon = Icons.Filled.Settings,
                     label = "Settings",
                     isSelected = currentTab == ScreenTab.Settings,
@@ -564,4 +646,117 @@ fun copyToClipboard(context: Context, label: String, text: String) {
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     val clip = ClipData.newPlainText(label, text)
     clipboard.setPrimaryClip(clip)
+}
+
+fun openBrowser(context: Context, url: String) {
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+    context.startActivity(intent)
+}
+
+@Composable
+fun CoolLinkCard(title: String, url: String, onCopy: () -> Unit, onOpen: () -> Unit) {
+    Card(
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(24.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(12.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.PlayArrow,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text(
+                        text = title,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 1.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.background, RoundedCornerShape(20.dp))
+                    .padding(20.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = url,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 18.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onCopy,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.primary,
+                        containerColor = Color.Transparent
+                    ),
+                    border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary),
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Text(
+                        text = "Copy Link",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                }
+
+                Button(
+                    onClick = onOpen,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Text(
+                        text = "Open Link",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                }
+            }
+        }
+    }
 }
